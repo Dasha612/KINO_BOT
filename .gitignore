@@ -10,3 +10,4 @@ __pycache__/
 
 # Исключить базу данных
 data/*.sqlite3
+.env
