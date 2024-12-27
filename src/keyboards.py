@@ -1,10 +1,7 @@
-from sys import prefix
-
-from aiogram.filters.callback_data import CallbackData
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
-from dotenv import load_dotenv
 import os
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from src.callback_data import Menu_Callback
 
 
 
@@ -15,8 +12,7 @@ subscribe_button  = InlineKeyboardMarkup(inline_keyboard=[
 
 main_menu_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Мой Профиль')],
                                 [KeyboardButton(text='Рекомендации'),],
-                                [KeyboardButton(text='Избранное')],
-                                [KeyboardButton(text='Выбрать фильм вместе')]], resize_keyboard=True)
+                                [KeyboardButton(text='Избранное')]], resize_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]
 
 check_subscription_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Проверить подписку')]])
 
@@ -24,19 +20,29 @@ set_profile_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Да�
                                                    [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
 
 
+profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Сбросить рекомендации')],
+                                                    #[KeyboardButton(text = 'Подписка')],
+                                                    [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
 
 
 
-class Menu_Callback(CallbackData, prefix='menu'):
-    menu_name : str
-    index: int
+stop_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Стоп')]], resize_keyboard=True, one_time_keyboard=True)
+
+favourites_button  = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='⏩', callback_data='move_forward')],
+    [InlineKeyboardButton(text='⏮️', callback_data='move_back')],
+    [InlineKeyboardButton(text='Список', callback_data='show_list')],
+    [InlineKeyboardButton(text='На главную', callback_data='На главную')]])
+
+
+
 
 rate_buttons = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='1', callback_data='1')],
     [InlineKeyboardButton(text='2', callback_data='2')],
-    [InlineKeyboardButton(text='2', callback_data='3')],
-    [InlineKeyboardButton(text='2', callback_data='4')],
-    [InlineKeyboardButton(text='2', callback_data='5')],
+    [InlineKeyboardButton(text='3', callback_data='3')],
+    [InlineKeyboardButton(text='4', callback_data='4')],
+    [InlineKeyboardButton(text='5', callback_data='5')],
 ])
 
 go_back_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Назад')]], resize_keyboard=True, one_time_keyboard=True)

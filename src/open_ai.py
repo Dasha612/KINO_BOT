@@ -4,8 +4,12 @@ from db.models import async_session
 from db.models import RecommendationSettings
 
 import os
-import ast
 from sqlalchemy.future import select
+import logging
+import re
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Список вопросов для настройки профиля
 questions = [
@@ -28,49 +32,71 @@ async def get_movie_recommendation(user_id: int):
                 select(RecommendationSettings).where(RecommendationSettings.user_id == user_id)
             )
             recommendation = result.scalars().first()
-            #Возвращаем словарь с ответами пользователя
-            if recommendation:
-                answers = {
-                    "rec1": recommendation.rec1,
-                    "rec2": recommendation.rec2,
-                    "rec3": recommendation.rec3,
-                    "rec4": recommendation.rec4,
-                    "rec5": recommendation.rec5,
-                    "rec6": recommendation.rec6,
-                    "rec7": recommendation.rec7,
-                }
 
+            # Инициализация словаря с ответами пользователя
+            answers = {
+                "rec1": "Ответ отсутствует",
+                "rec2": "Ответ отсутствует",
+                "rec3": "Ответ отсутствует",
+                "rec4": "Ответ отсутствует",
+                "rec5": "Ответ отсутствует",
+                "rec6": "Ответ отсутствует",
+                "rec7": "Ответ отсутствует",
+            }
+
+            # Если рекомендации найдены, обновляем ответы
+            if recommendation:
+                answers.update({
+                    "rec1": recommendation.rec1 or "Ответ отсутствует",
+                    "rec2": recommendation.rec2 or "Ответ отсутствует",
+                    "rec3": recommendation.rec3 or "Ответ отсутствует",
+                    "rec4": recommendation.rec4 or "Ответ отсутствует",
+                    "rec5": recommendation.rec5 or "Ответ отсутствует",
+                    "rec6": recommendation.rec6 or "Ответ отсутствует",
+                    "rec7": recommendation.rec7 or "Ответ отсутствует",
+                })
+
+    # Формирование текста для GPT
     text = 'Я ответил на вопросы о фильмах. Порекомендуй мне фильмы.\n'
     for i, question in enumerate(questions):
         answer_key = f"rec{i + 1}"  # Ключи словаря rec1, rec2 и т. д.
         answer = answers.get(answer_key, "Ответ отсутствует")  # Берем ответ или пишем "Ответ отсутствует"
         text += f"Вопрос {i + 1}: {question}\nОтвет: {answer}\n\n"
 
-
-
+    # Отправка запроса в OpenAI
     response = await client.chat.completions.create(
-        messages = [{
-        "role": "system",
-            "content": (
-                "You are a recommendation system for selecting movies based on the user's preferences. "
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a recommendation system for selecting movies based on the user's preferences. "
                     "Your task is to recommend movies for the user based on their preferences. "
-                    "Output 3 movies that match the user's preferences. Below are the user's answers to the preference questions in Russian, "
+                    "Output 7 movies that match the user's preferences. Below are the user's answers to the preference questions in Russian, "
                     "however, all movie titles you recommend should strictly be in English. The output data should be in the format of a Python list Movies = [], "
-                    "containing only the movie titles in English"
-            )
-
-        },
-      {
-        "role": "user",
-        "content": str(text)
-      }],
+                    "containing only the movie titles in English."
+                )
+            },
+            {
+                "role": "user",
+                "content": str(text)
+            }
+        ],
         model='gpt-4o-mini-2024-07-18'
     )
 
+    # Обработка ответа GPT
     movie_list_str = response.choices[0].message.content
-    movie_list = movie_list_str.replace('Movies = [', '').replace(']', '').replace('"', '').split(
-        ',')  # Обработка строки
-    movie_list = [movie.strip() for movie in movie_list]  # Убираем лишние пробелы
+    pattern = r"Movies = \[\s*(.*?)\s*\]"
+    match = re.search(pattern, movie_list_str, re.DOTALL)
+    movie_list = []
+    if match:
+        movies_string = match.group(1)  # Получаем только содержимое массива
+        # Разбиваем строку на элементы и убираем лишние пробелы
+        movie_list = [movie.strip().strip('"') for movie in movies_string.split(',')]
+
+
+    logger.info(f"Extracted CHAT GPT data: {movie_list_str}")
+
     return movie_list
 
 
