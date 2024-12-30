@@ -158,35 +158,38 @@ async def extract_movie_data(movies_data):
     return movie_info_list
 
 
-async def get_favourites_data(imdb_ids):
-    """
-    Получение и подготовка данных для избранных фильмов.
-    """
-    favourites_data = []
-    async with aiohttp.ClientSession() as session:
-        tasks = [
-            fetch_movie_data(
-                f'https://api.kinopoisk.dev/v1.4/movie?externalId.imdb={imdb_id}&token={API_KEY_KINOPOISK}',
-                imdb_id,  # IMDb ID
-                session
-            )
-            for imdb_id in imdb_ids
-        ]
-        # Выполняем все запросы параллельно
-        movies_data = await asyncio.gather(*tasks)
+#FOR FAVOURITES
+async def find_by_imdb(movie_imdb_ids):
+    movies_data = {}
 
-    # Обрабатываем результаты запросов
-    for imdb_id, data in zip(imdb_ids, movies_data):
-        favourites_data.append({
-            "imdb_id": imdb_id,
-            "title": data.get("name", "Неизвестно"),
-            "year": data.get("year", "Неизвестно"),
-            "rating": data.get("rating", {}).get("kp", "N/A"),
-            "poster": data.get("poster", {}).get("url", "No image available"),
-            "description": data.get("description", "Описание отсутствует"),
-            "genres": ", ".join([genre["name"] for genre in data.get("genres", [])]),
-            "duration": f'{data.get("movieLength", 0)} мин'
-        })
-    return favourites_data
+    tasks = []
+    for imdb_id in movie_imdb_ids:
+        if imdb_id != 'Not Found':
+            url = f'https://api.kinopoisk.dev/v1.4/movie?externalId.imdb={imdb_id}&token={API_KEY_KINOPOISK}'
+            tasks.append(fetch_data(url))
+
+    movie_data = await asyncio.gather(*tasks)
+    for data, imdb_id in zip(movie_data, movie_imdb_ids):
+        if data:
+            movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': data}
+        else:
+            movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': 'Not Found'}
+    return movies_data
+
+
+async def fetch_data(url):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    logger.debug(data)
+                    return data
+                else:
+                    logger.warning(f"Failed to fetch data for URL: {url}, Status: {response.status}")
+                    return None
+    except Exception as e:
+        logger.error(f"Error fetching data: {e}")
+        return None
 
 

@@ -28,13 +28,18 @@ profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'С�
 
 stop_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Стоп')]], resize_keyboard=True, one_time_keyboard=True)
 
-favourites_button  = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='⏩', callback_data='move_forward')],
-    [InlineKeyboardButton(text='⏮️', callback_data='move_back')],
+favourites_button = InlineKeyboardMarkup(inline_keyboard=[
+     [InlineKeyboardButton(text='⏮️', callback_data='move_begin'),
+     InlineKeyboardButton(text='◀️', callback_data='move_back'),
+     InlineKeyboardButton(text='▶️', callback_data='move_forward'),
+     InlineKeyboardButton(text='⏩', callback_data='move_end')
+     ],
     [InlineKeyboardButton(text='Список', callback_data='show_list')],
-    [InlineKeyboardButton(text='На главную', callback_data='На главную')]])
+    [InlineKeyboardButton(text='На главную', callback_data='На главную')]
+])
 
-
+prev_button = InlineKeyboardButton(text="◀️", callback_data="show_list_prev")
+next_button = InlineKeyboardButton(text="▶️", callback_data="show_list_next")
 
 
 rate_buttons = InlineKeyboardMarkup(inline_keyboard=[

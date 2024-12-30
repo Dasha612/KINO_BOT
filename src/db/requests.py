@@ -146,7 +146,7 @@ async def get_rec(user_id: int):
     return answers
 
 
-async def get_liked_movies(user_id: int) -> set:
+async def get_liked_movies(user_id: int) -> list:
     """Получает все лайкнутые фильмы пользователя."""
     async with async_session() as session:
         async with session.begin():
@@ -155,7 +155,8 @@ async def get_liked_movies(user_id: int) -> set:
                     UserPreferences.user_id == user_id
                 )
             )
-            return {row[0] for row in result.fetchall() if row[0]}  # Возвращаем множество IMDb ID
+            return [row[0] for row in result.fetchall() if row[0]]  # Возвращаем список IMDb ID
+
 
 
 async def get_disliked_movies(user_id: int) -> set:
