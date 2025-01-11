@@ -1,7 +1,8 @@
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from db.models import async_session
-from db.models import RecommendationSettings
+from db.models import RecommendationSettings, UserPreferences
+from kinopoisk_omdb import find_by_imdb
 
 import os
 from sqlalchemy.future import select
@@ -71,7 +72,7 @@ async def get_movie_recommendation(user_id: int):
                 "content": (
                     "You are a recommendation system for selecting movies based on the user's preferences. "
                     "Your task is to recommend movies for the user based on their preferences. "
-                    "Output 7 movies that match the user's preferences. Below are the user's answers to the preference questions in Russian, "
+                    "Output 5 movies that match the user's preferences. Below are the user's answers to the preference questions in Russian, "
                     "however, all movie titles you recommend should strictly be in English. The output data should be in the format of a Python list Movies = [], "
                     "containing only the movie titles in English."
                 )
@@ -98,6 +99,73 @@ async def get_movie_recommendation(user_id: int):
     logger.info(f"Extracted CHAT GPT data: {movie_list_str}")
 
     return movie_list
+
+
+
+
+async def movie_rec(user_id: int):
+    async with async_session() as session:
+        async with session.begin():
+            res = await session.execute(
+                select(UserPreferences).where(UserPreferences.user_id == user_id)
+            )
+            preferences = res.scalars()
+            watched_movies = [pref.watched for pref in preferences if pref.watched]
+            liked_movies = [pref.rec_like for pref in preferences if pref.rec_like]
+
+    movies_1 = await find_by_imdb(watched_movies)  # Передаем список
+    movies_2 = await find_by_imdb(liked_movies)  # Передаем список
+    data = {**movies_1, **movies_2}  # Объединяем два словаря
+    movies = [
+        item["data"]["docs"][0]  # Первый фильм из списка документов
+        for item in data.values() if item["data"]["docs"]
+    ]
+
+
+    if len(watched_movies) >= 5 or len(liked_movies) >= 5:
+        logger.info("У пользователя есть понравившиеся фильмы")
+        movie_names = ', '.join([movie.get('name', 'Unknown') for movie in movies])
+        text = f"Here are the movies that the user liked: {movie_names}"
+
+        response = await client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a recommendation system for selecting movies based on the user's preferences. "
+                        "Your task is to recommend movies for the user based on their preferences. "
+                        "Output 5 movies that match the user's preferences. Below are the user's answers to the preference questions in Russian, "
+                        "however, all movie titles you recommend should strictly be in English. The output data should be in the format of a Python list Movies = [], "
+                        "containing only the movie titles in English."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": str(text)
+                }
+            ],
+            model='gpt-4o-mini-2024-07-18'
+        )
+        logger.debug(f"Response from movie_rec: {response}")
+
+
+        # Обработка ответа GPT
+        movie_list_str = response.choices[0].message.content
+        pattern = r"Movies = \[\s*(.*?)\s*\]"
+        match = re.search(pattern, movie_list_str, re.DOTALL)
+        movie_list = []
+        if match:
+            movies_string = match.group(1)  # Получаем только содержимое массива
+            movie_list = [movie.strip().strip('"') for movie in movies_string.split(',')]
+        else:
+            logger.error("Pattern not found in GPT response. Response: %s", movie_list_str)
+
+        if not movie_list:
+            logger.error("movie_list is None or empty")
+            return []
+
+
+
 
 
 

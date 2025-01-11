@@ -38,8 +38,7 @@ async def set_user(
                 session.add(new_user)
                 await session.commit()
             except IntegrityError as e:
-                # Логируем ошибку
-                logger.error(f"Ошибка IntegrityError при добавлении пользователя {id}: {e}")
+
                 await session.rollback()  # Откатываем транзакцию
 
 
@@ -185,3 +184,22 @@ async def add_to_next(user_id: int, movie_id: str):
             new_dislike = UserPreferences(user_id=user_id, rec_dis=movie_id)
             session.add(new_dislike)
             await session.commit()
+
+async def save_movie_rating(user_id, movie_id):
+    async with async_session() as session:
+        async with session.begin():
+            new_movie = UserPreferences(user_id=user_id, watched = movie_id)
+            session.add(new_movie)
+            await session.commit()
+
+async def get_watched(user_id):
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(UserPreferences.watched).where(
+                    UserPreferences.user_id == user_id
+                )
+            )
+            return [row[0] for row in result.fetchall() if row[0]]  # Возвращаем множество IMDb ID
+
+

@@ -5,15 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="314147a1-926e-43ca-9d08-e2805b182229" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/Kino_bot.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Kino_bot.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/src/db.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/db/requests.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/requests.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/handlers.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/keyboards.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/keyboards.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/kinopoisk_omdb.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/kinopoisk_omdb.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/open_ai.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/open_ai.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,7 +55,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-495700d161d3-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.22562.220" />
+        <option value="bundled-python-sdk-98f27166c754-ba05f1cad1b1-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.21829.153" />
       </set>
     </attachedChunks>
   </component>

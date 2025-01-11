@@ -5,7 +5,7 @@ import keyboards as kb
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 import logging
 import aiogram
 
@@ -13,7 +13,7 @@ import aiogram
 from config import bot
 from db.models import async_session
 import db.requests as rq
-from open_ai import get_movie_recommendation
+from open_ai import movie_rec
 from kinopoisk_omdb import get_movies, extract_movie_data, find_by_imdb
 from src.callback_data import Menu_Callback
 
@@ -96,7 +96,7 @@ async def set_q7(message: Message, state: FSMContext) -> None:
     )
 
     await message.answer('Уфф...Все ответы записал.')
-    await message.answer('Я смотрю, что ты опытный киноман, но даже тебя я смогу удивить.')
+    await message.answer('Я смотрю, что ты опытный киноман, но даже тебя я смогу удивить.', reply_markup=ReplyKeyboardRemove())
 
     if member.status == 'left':
         await message.answer(
@@ -105,12 +105,11 @@ async def set_q7(message: Message, state: FSMContext) -> None:
         )
     else:
         # Начинаем сразу рекомендовать фильмы
-        stop_b = kb.stop_button
+
         await message.answer(
-            'Начинаю рекомендовать фильмы!',
-            reply_markup= stop_b
+            'Начинаю рекомендовать фильмы!'
         )
-        response = await get_movie_recommendation(message.from_user.id)
+        response = await movie_rec(message.from_user.id)
         movies_data = await get_movies(response, message.from_user.id)
         movies = await extract_movie_data(movies_data)
         await state.update_data(movies=movies, current_index=0)
@@ -134,13 +133,6 @@ async def cmd_start(message: Message):
         reply_markup=kb.main_menu_button
     )
 
-@router.message(F.text == 'Стоп')
-async def stop_recommendations(message: types.Message, state: FSMContext):
-    await state.clear()  # Очищаем состояние
-    await message.answer("Рекомендации остановлены. Возвращайтесь, когда захотите!", reply_markup=kb.main_menu_button)
-
-
-
 @router.callback_query(F.data == 'check')
 async def check_sub(callback: CallbackQuery, bot: Bot, state: FSMContext):
     is_subscribed = await bot.get_chat_member(chat_id='-100' + os.getenv("TEST_CHAT_ID"), user_id=callback.from_user.id)
@@ -148,12 +140,11 @@ async def check_sub(callback: CallbackQuery, bot: Bot, state: FSMContext):
     if is_subscribed.status != 'left':
         # Благодарим за подписку
         await callback.message.answer(
-            "Спасибо за подписку!\nНачинаю рекомендовать фильмы!",
-            reply_markup=kb.stop_button  # Кнопка остановки рекомендаций
+            "Спасибо за подписку!\nНачинаю рекомендовать фильмы!"
         )
 
         # Логика для начала рекомендаций
-        response = await get_movie_recommendation(callback.from_user.id)
+        response = await movie_rec(callback.from_user.id)
         movies_data = await get_movies(response, callback.from_user.id)
         movies = await extract_movie_data(movies_data)
         await state.update_data(movies=movies, current_index=0)
@@ -205,7 +196,7 @@ async def get_recommendations(message: types.Message, state: FSMContext):
         return
 
     # Если рекомендации есть, сразу начинаем рекомендовать
-    response = await get_movie_recommendation(user_id)
+    response = await movie_rec(user_id)
     movies_data = await get_movies(response, user_id)
     movies = await extract_movie_data(movies_data)
     await state.update_data(movies=movies, current_index=0)
@@ -218,14 +209,16 @@ async def send_movie_or_edit(message, movie, state, index):
     title = movie['title']
     google_search_url = f"https://www.google.com/search?q=смотреть+фильм+{title.replace(' ', '+')}"
 
+    # Проверка URL постера
+    poster_url = movie.get('poster', 'No image available')
+    if not poster_url or poster_url == 'No image available':
+        poster_url = None  # Устанавливаем None, если изображение отсутствует
 
-
-
-    poster_url = movie['poster']
+    # Формируем текст сообщения
     movie_text = (
         f"<b>Название:</b> {title}\n"
         f"<b>Год:</b> {movie['year']}\n"
-        f"<b>Рейтинг:</b> {round(movie['rating'], 2)}\n"
+        f"<b>Рейтинг:</b> {movie['rating']}\n"
         f"<b>Длительность:</b> {movie['duration']}\n"
         f"<b>Жанры:</b> {movie['genres']}\n\n"
         f"<b>Описание:</b> {movie['description']}\n"
@@ -233,37 +226,46 @@ async def send_movie_or_edit(message, movie, state, index):
     )
     keyboard = kb.user_recommendation_button(index)
 
-
     # Получаем ID сообщения из состояния, если оно есть
     data = await state.get_data()
     message_id = data.get("message_id")
 
-    if poster_url and poster_url != 'No image available':
-        if message_id:
-            # Если сообщение существует, редактируем его
-            await message.bot.edit_message_media(
-                chat_id=message.chat.id,
-                message_id=message_id,
-                media=InputMediaPhoto(
-                    media=poster_url,
+    # Если постер доступен
+    if poster_url:
+        try:
+            if message_id:
+                # Если сообщение существует, редактируем его
+                await message.bot.edit_message_media(
+                    chat_id=message.chat.id,
+                    message_id=message_id,
+                    media=InputMediaPhoto(
+                        media=poster_url,
+                        caption=movie_text,
+                        parse_mode="HTML"
+                    ),
+                    reply_markup=keyboard
+                )
+            else:
+                # Если сообщение ещё не существует, отправляем новое
+                sent_message = await message.answer_photo(
+                    photo=poster_url,
                     caption=movie_text,
+                    reply_markup=keyboard,
                     parse_mode="HTML"
-                ),
-                reply_markup=keyboard
-            )
-        else:
-            # Если сообщение ещё не существует, отправляем новое
-            sent_message = await message.answer_photo(
-                photo=poster_url,
-                caption=movie_text,
+                )
+                # Сохраняем ID сообщения
+                await state.update_data(message_id=sent_message.message_id)
+        except Exception as e:
+            # Логируем ошибку и отправляем текст без изображения
+            logger.error(f"Failed to send photo: {e}")
+            await message.answer(
+                text=movie_text,
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
-            # Сохраняем ID сообщения
-            await state.update_data(message_id=sent_message.message_id)
     else:
+        # Если постера нет, отправляем только текст
         if message_id:
-            # Если сообщение существует, редактируем текст
             await message.bot.edit_message_text(
                 text=movie_text,
                 chat_id=message.chat.id,
@@ -272,7 +274,6 @@ async def send_movie_or_edit(message, movie, state, index):
                 parse_mode="HTML"
             )
         else:
-            # Если сообщение ещё не существует, отправляем новое
             sent_message = await message.answer(
                 text=movie_text,
                 reply_markup=keyboard,
@@ -282,14 +283,12 @@ async def send_movie_or_edit(message, movie, state, index):
             await state.update_data(message_id=sent_message.message_id)
 
 
-
 @router.callback_query(Menu_Callback.filter())
 async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu_Callback, state: FSMContext):
     # Получаем список фильмов и текущий индекс
     data = await state.get_data()
     movies = data.get("movies", [])
     current_index = data.get("current_index", 0)
-
 
     # Проверяем корректность индекса
     if current_index >= len(movies) or current_index < 0:
@@ -301,23 +300,79 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     action = callback_data.menu_name
     movie = movies[current_index]
 
+    # Логируем выбранное действие для отладки
+    logger.info(f"User {callback.from_user.id} selected action: {action}")
+
     if action == "like":
         await rq.add_to_likes(callback.from_user.id, movie['movie_id'])
     elif action == "next":
         await rq.add_to_next(callback.from_user.id, movie['movie_id'])
+    elif action == "Стоп":
+        logger.info("Stopping recommendations for user %s", callback.from_user.id)
+        await state.clear()  # Очищаем состояние
+        await callback.message.answer(
+            "Рекомендации остановлены. Возвращайтесь, когда захотите!",
+            reply_markup=kb.main_menu_button  # Клавиатура для возврата в главное меню
+        )
+        await callback.answer()  # Закрываем callback
+        return
+    elif action == "watched":
+        await callback.message.answer("Пожалуйста, оцените фильм", reply_markup=kb.rate_buttons)
+        await state.update_data(last_action="watched")  # Сохраняем состояние для проверки
+        await callback.answer()
+        return
 
-    # Переход к следующему фильму
+    last_action = data.get("last_action", "")
+    if last_action == "watched":
+        return
+
     current_index += 1
     if current_index >= len(movies):
-        await callback.message.answer("Подожди немного, сейчас мы найдем еще фильмы :)")
+        await callback.message.answer(
+            "Фильмы для показа закончились. Попробуйте запросить новые рекомендации.",
+            reply_markup=kb.main_menu_button
+        )
         await callback.answer()
         return
 
     # Обновляем индекс и отображаем следующий фильм
     await state.update_data(current_index=current_index)
     await send_movie_or_edit(callback.message, movies[current_index], state, current_index)
+    await callback.answer()
 
-    # Уведомляем Telegram, что callback обработан
+
+@router.callback_query(F.data.in_(['1', '2', '3', '4', '5']))
+async def handle_rating(callback: types.CallbackQuery, state: FSMContext):
+    # Получаем оценку пользователя
+    user_rating = int(callback.data)
+    data = await state.get_data()
+    current_index = data.get("current_index", 0)
+    movies = data.get("movies", [])
+    movie = movies[current_index]
+
+
+    if user_rating >=4:
+        await rq.save_movie_rating(user_id=callback.from_user.id, movie_id=movie['movie_id'])
+
+    # Удаляем сообщение с кнопками
+    await callback.message.delete()
+
+    # Сбрасываем состояние last_action
+    await state.update_data(last_action="")
+
+    # Переход к следующему фильму
+    current_index += 1
+    if current_index >= len(movies):
+        await callback.message.answer(
+            "Фильмы для показа закончились. Попробуйте запросить новые рекомендации.",
+            reply_markup=kb.main_menu_button
+        )
+        await callback.answer()
+        return
+
+    # Обновляем индекс и отображаем следующий фильм
+    await state.update_data(current_index=current_index)
+    await send_movie_or_edit(callback.message, movies[current_index], state, current_index)
     await callback.answer()
 
 
@@ -404,14 +459,6 @@ async def handle_favourite_action(callback: types.CallbackQuery, state: FSMConte
 
         # Отвечаем на callback
         await callback.answer()
-
-
-
-
-
-
-
-
 
     elif action == "На главную":
         await state.clear()
@@ -529,6 +576,7 @@ async def send_favourite_movie_or_edit(message, movie, state, index):
                 parse_mode="HTML"
             )
             await state.update_data(message_id=sent_message.message_id)
+
 
 
 

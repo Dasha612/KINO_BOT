@@ -103,33 +103,25 @@ async def get_movies(movies_list, user_id):
 
 
 async def extract_movie_data(movies_data):
-
-    movie_info_list = []  # List to store movie info
+    movie_info_list = []  # Список для хранения данных о фильмах
     for movie, data in movies_data.items():
-        movie_info = (data['data'].get('docs', [{}])[0]
-                      if data['data'] != 'Not Found' else None)
+        docs = data['data'].get('docs', []) if data['data'] != 'Not Found' else []
 
-        if movie_info:
-            # Извлечение данных из movie_info
-            title_russian = movie_info.get('name', 'N/A')  # Название на русском
-            year = movie_info.get('year', 'Unknown')  # Год выхода
-            poster_url = movie_info.get('poster', {}).get('url', 'No image available')  # URL постера
+        if docs:  # Проверяем, есть ли данные в docs
+            movie_info = docs[0]
+            title_russian = movie_info.get('name', 'N/A')
+            year = movie_info.get('year', 'Unknown')
+            poster_url = movie_info.get('poster', {}).get('url', 'No image available')
             description = (
-                    movie_info.get('shortDescription') or
-                    movie_info.get('description') or
-                    'No description available'
+                movie_info.get('shortDescription') or
+                movie_info.get('description') or
+                'No description available'
             )
-            rating = movie_info.get('rating', {}).get('kp', 'No rating available')  # Рейтинг Кинопоиска
-
-            # Извлечение жанров и преобразование в строку
-            genres_list = movie_info.get('genres', [])
-            genres = ', '.join([genre.get('name', 'Unknown') for genre in genres_list])
-
-            # Длительность фильма
+            rating = movie_info.get('rating', {}).get('kp', 'No rating available')
+            genres = ', '.join([genre.get('name', 'Unknown') for genre in movie_info.get('genres', [])])
             duration = movie_info.get('movieLength', 'N/A')
             duration_text = f"{duration} min" if isinstance(duration, int) else duration
 
-            # Добавление в список
             movie_info_list.append({
                 'movie_id': data['imdb_id'],
                 'title': title_russian,
@@ -141,7 +133,7 @@ async def extract_movie_data(movies_data):
                 'duration': duration_text,
             })
         else:
-            # Если данные о фильме не найдены
+            # Если данные отсутствуют
             movie_info_list.append({
                 'movie_id': data['imdb_id'],
                 'title': movie,
@@ -154,8 +146,8 @@ async def extract_movie_data(movies_data):
             })
 
     logger.info(f"Extracted movie data: {movie_info_list}")
-
     return movie_info_list
+
 
 
 #FOR FAVOURITES
@@ -174,6 +166,8 @@ async def find_by_imdb(movie_imdb_ids):
             movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': data}
         else:
             movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': 'Not Found'}
+    logger.info(movies_data)
+
     return movies_data
 
 

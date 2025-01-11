@@ -12,7 +12,7 @@ subscribe_button  = InlineKeyboardMarkup(inline_keyboard=[
 
 main_menu_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Мой Профиль')],
                                 [KeyboardButton(text='Рекомендации'),],
-                                [KeyboardButton(text='Избранное')]], resize_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]
+                                [KeyboardButton(text='Избранное')]], resize_keyboard=True, one_time_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]
 
 check_subscription_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Проверить подписку')]])
 
@@ -26,7 +26,7 @@ profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'С�
 
 
 
-stop_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Стоп')]], resize_keyboard=True, one_time_keyboard=True)
+
 
 favourites_button = InlineKeyboardMarkup(inline_keyboard=[
      [InlineKeyboardButton(text='⏮️', callback_data='move_begin'),
@@ -41,14 +41,17 @@ favourites_button = InlineKeyboardMarkup(inline_keyboard=[
 prev_button = InlineKeyboardButton(text="◀️", callback_data="show_list_prev")
 next_button = InlineKeyboardButton(text="▶️", callback_data="show_list_next")
 
-
-rate_buttons = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='1', callback_data='1')],
-    [InlineKeyboardButton(text='2', callback_data='2')],
-    [InlineKeyboardButton(text='3', callback_data='3')],
-    [InlineKeyboardButton(text='4', callback_data='4')],
-    [InlineKeyboardButton(text='5', callback_data='5')],
-])
+rate_buttons = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text='1', callback_data='1'),
+            InlineKeyboardButton(text='2', callback_data='2'),
+            InlineKeyboardButton(text='3', callback_data='3'),
+            InlineKeyboardButton(text='4', callback_data='4'),
+            InlineKeyboardButton(text='5', callback_data='5')
+        ]
+    ]
+)
 
 go_back_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Назад')]], resize_keyboard=True, one_time_keyboard=True)
 
@@ -57,7 +60,8 @@ def user_recommendation_button(index: int):
     btns = {
         '❤️': 'like',
         'Следующий⏩': 'next',
-        'Смотрел': 'watched'
+        'Смотрел': 'watched',
+        'Стоп': 'Стоп'
     }
     for text, menu_name in btns.items():
         keyboard.add(InlineKeyboardButton(text=text, callback_data=Menu_Callback(menu_name=menu_name, index=index).pack()))

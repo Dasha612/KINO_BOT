@@ -73,6 +73,8 @@ class UserPreferences(Base):
     user_id = mapped_column(BigInteger, ForeignKey('users.user_id'), nullable=False)
     rec_like = mapped_column(Text)
     rec_dis = mapped_column(Text)
+    watched = mapped_column(Text)
+    unrecommended = mapped_column(Text)
 
     # Связь с пользователем
     user = relationship("User", back_populates="preferences")
