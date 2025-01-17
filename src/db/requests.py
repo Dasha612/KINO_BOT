@@ -1,8 +1,10 @@
 from db.models import User, Subscriptions, UserPreferences, RecommendationSettings, UserLimits, async_session
 from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import update, delete, select
+
 from datetime import datetime
+
+from sqlalchemy.exc import NoResultFound
 
 from sqlalchemy.exc import IntegrityError
 
@@ -185,6 +187,13 @@ async def add_to_next(user_id: int, movie_id: str):
             session.add(new_dislike)
             await session.commit()
 
+async def add_to_unrec(user_id: int, movie_id: str):
+    async with async_session() as session:
+        async with session.begin():
+            new_unrec = UserPreferences(user_id=user_id, unrecommended=movie_id)
+            session.add(new_unrec)
+            await session.commit()
+
 async def save_movie_rating(user_id, movie_id):
     async with async_session() as session:
         async with session.begin():
@@ -201,5 +210,17 @@ async def get_watched(user_id):
                 )
             )
             return [row[0] for row in result.fetchall() if row[0]]  # Возвращаем множество IMDb ID
+
+async def get_unrec(user_id: int) -> list:
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(UserPreferences.unrecommended).where(
+                    UserPreferences.user_id == user_id
+                )
+            )
+            return [row[0] for row in result.fetchall() if row[0]]  # Возвращаем список IMDb ID
+
+
 
 

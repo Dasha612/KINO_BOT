@@ -4,6 +4,7 @@ from db.models import async_session
 from db.models import RecommendationSettings, UserPreferences
 from kinopoisk_omdb import find_by_imdb
 
+
 import os
 from sqlalchemy.future import select
 import logging
@@ -91,12 +92,11 @@ async def get_movie_recommendation(user_id: int):
     match = re.search(pattern, movie_list_str, re.DOTALL)
     movie_list = []
     if match:
-        movies_string = match.group(1)  # Получаем только содержимое массива
-        # Разбиваем строку на элементы и убираем лишние пробелы
-        movie_list = [movie.strip().strip('"') for movie in movies_string.split(',')]
-
+        movies_string = match.group(1)
+        movie_list = [movie.strip().strip('"').strip("'") for movie in re.split(r',\s*', movies_string)]
 
     logger.info(f"Extracted CHAT GPT data: {movie_list_str}")
+    logger.info(f"movie_list: {movie_list}, {type(movie_list)}")
 
     return movie_list
 
@@ -113,17 +113,33 @@ async def movie_rec(user_id: int):
             watched_movies = [pref.watched for pref in preferences if pref.watched]
             liked_movies = [pref.rec_like for pref in preferences if pref.rec_like]
 
-    movies_1 = await find_by_imdb(watched_movies)  # Передаем список
-    movies_2 = await find_by_imdb(liked_movies)  # Передаем список
-    data = {**movies_1, **movies_2}  # Объединяем два словаря
-    movies = [
-        item["data"]["docs"][0]  # Первый фильм из списка документов
-        for item in data.values() if item["data"]["docs"]
-    ]
 
+            logger.info(preferences)
+
+            logger.info("WATCHED LIKED")
+            logger.info(watched_movies)
+            logger.info(liked_movies)
 
     if len(watched_movies) >= 5 or len(liked_movies) >= 5:
         logger.info("У пользователя есть понравившиеся фильмы")
+
+        watched_movies = watched_movies[-5:]
+        liked_movies = liked_movies[-5:]
+        # Логирование для проверки
+        logger.info(f"Last 5 watched movies: {watched_movies}")
+        logger.info(f"Last 5 liked movies: {liked_movies}")
+
+        movies_1 = await find_by_imdb(watched_movies)  # Передаем список
+        logger.info(movies_1)
+        movies_2 = await find_by_imdb(liked_movies)  # Передаем список
+        logger.info(movies_2)
+        data = {**movies_1, **movies_2}  # Объединяем два словаря
+        movies = [
+            item["data"]["docs"][0]  # Первый фильм из списка документов
+            for item in data.values() if item["data"]["docs"]
+        ]
+
+
         movie_names = ', '.join([movie.get('name', 'Unknown') for movie in movies])
         text = f"Here are the movies that the user liked: {movie_names}"
 
@@ -155,14 +171,24 @@ async def movie_rec(user_id: int):
         match = re.search(pattern, movie_list_str, re.DOTALL)
         movie_list = []
         if match:
-            movies_string = match.group(1)  # Получаем только содержимое массива
-            movie_list = [movie.strip().strip('"') for movie in movies_string.split(',')]
+            movies_string = match.group(1)
+            movie_list = [movie.strip().strip('"').strip("'") for movie in re.split(r',\s*', movies_string)]
+            return movie_list
+
         else:
             logger.error("Pattern not found in GPT response. Response: %s", movie_list_str)
+        logger.info(f"Extracted CHAT GPT data: {movie_list_str}")
+        logger.info(f"movie_list: {movie_list}, {type(movie_list)}")
 
         if not movie_list:
             logger.error("movie_list is None or empty")
+            logger.info(movie_list)
             return []
+
+
+    else:
+        logger.info("\nВызываем обычные рекомендации\n")
+        return await get_movie_recommendation(user_id=user_id)
 
 
 

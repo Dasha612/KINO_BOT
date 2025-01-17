@@ -34,6 +34,11 @@ async def get_imdb_id(movie_title):
 
 
 async def find_in_ombd(movie_list, user_id):
+
+
+    if not movie_list:  # Проверка на None или пустой список
+        logger.warning("Received None or empty movie_list in find_in_ombd")
+        return {}
     movie_imdb_ids = {}
     tasks = []
 
@@ -55,7 +60,7 @@ async def find_in_ombd(movie_list, user_id):
             continue
         movie_imdb_ids[movie] = imdb_id if imdb_id else 'Not Found'
 
-    logger.info(f"Movie IMDb IDs: {movie_imdb_ids}")
+    #logger.info(f"Movie IMDb IDs: {movie_imdb_ids}")
     return movie_imdb_ids
 
 
@@ -103,6 +108,7 @@ async def get_movies(movies_list, user_id):
 
 
 async def extract_movie_data(movies_data):
+    logger.info(movies_data)
     movie_info_list = []  # Список для хранения данных о фильмах
     for movie, data in movies_data.items():
         docs = data['data'].get('docs', []) if data['data'] != 'Not Found' else []
@@ -149,9 +155,12 @@ async def extract_movie_data(movies_data):
     return movie_info_list
 
 
+async def check_movie():
+    pass
 
 #FOR FAVOURITES
 async def find_by_imdb(movie_imdb_ids):
+
     movies_data = {}
 
     tasks = []

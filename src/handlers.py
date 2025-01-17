@@ -1,4 +1,6 @@
 import os
+from gc import callbacks
+
 from aiogram import types, Router, Bot, F
 from aiogram.filters import CommandStart, Command
 import keyboards as kb
@@ -13,7 +15,7 @@ import aiogram
 from config import bot
 from db.models import async_session
 import db.requests as rq
-from open_ai import movie_rec
+from open_ai import movie_rec, get_movie_recommendation
 from kinopoisk_omdb import get_movies, extract_movie_data, find_by_imdb
 from src.callback_data import Menu_Callback
 
@@ -184,6 +186,7 @@ async def get_recommendations(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
 
     # Проверяем наличие рекомендаций
+
     recommendations = await rq.get_rec(user_id)
 
     if not recommendations:
@@ -197,7 +200,14 @@ async def get_recommendations(message: types.Message, state: FSMContext):
 
     # Если рекомендации есть, сразу начинаем рекомендовать
     response = await movie_rec(user_id)
+    #Функция, которая проверяет, есть ли фильм в бд; если есть - вытаскиваем инфу, если нет - вызываем функции ниже
+    # нужно узнать в каком виде хранятся данные о фильме
+    # Нужно убрать карусель избранных и сделать список (пагинация)
+    # нужно зациклить реки до нажатия стоп
+
+
     movies_data = await get_movies(response, user_id)
+
     movies = await extract_movie_data(movies_data)
     await state.update_data(movies=movies, current_index=0)
 
@@ -289,6 +299,7 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     data = await state.get_data()
     movies = data.get("movies", [])
     current_index = data.get("current_index", 0)
+    user_id = callback.message.from_user.id
 
     # Проверяем корректность индекса
     if current_index >= len(movies) or current_index < 0:
@@ -309,6 +320,7 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
         await rq.add_to_next(callback.from_user.id, movie['movie_id'])
     elif action == "Стоп":
         logger.info("Stopping recommendations for user %s", callback.from_user.id)
+
         await state.clear()  # Очищаем состояние
         await callback.message.answer(
             "Рекомендации остановлены. Возвращайтесь, когда захотите!",
@@ -328,12 +340,22 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
 
     current_index += 1
     if current_index >= len(movies):
-        await callback.message.answer(
-            "Фильмы для показа закончились. Попробуйте запросить новые рекомендации.",
-            reply_markup=kb.main_menu_button
-        )
-        await callback.answer()
-        return
+        # Получаем новые рекомендации
+        loading_message = await callback.message.answer("Подождите немного, подгружаем новые рекомендации...")
+        response = await movie_rec(callback.from_user.id)
+        movies_data = await get_movies(response, callback.from_user.id)
+        new_movies = await extract_movie_data(movies_data)
+
+        # Если новые фильмы не найдены, завершаем
+        if not new_movies:
+            await callback.message.answer("К сожалению, больше фильмов нет. Возвращайтесь позже!")
+            await callback.answer()
+            return
+        await loading_message.delete()
+
+        # Добавляем новые фильмы в состояние
+        movies.extend(new_movies)
+        await state.update_data(movies=movies)
 
     # Обновляем индекс и отображаем следующий фильм
     await state.update_data(current_index=current_index)
@@ -363,12 +385,15 @@ async def handle_rating(callback: types.CallbackQuery, state: FSMContext):
     # Переход к следующему фильму
     current_index += 1
     if current_index >= len(movies):
-        await callback.message.answer(
-            "Фильмы для показа закончились. Попробуйте запросить новые рекомендации.",
-            reply_markup=kb.main_menu_button
-        )
-        await callback.answer()
-        return
+        loading_message = await callback.message.answer("Подождите немного, подгружаем новые рекомендации...")
+        # Загружаем новые фильмы
+        response = await movie_rec(callback.from_user.id)
+        movies_data = await get_movies(response, callback.from_user.id)
+        new_movies = await extract_movie_data(movies_data)
+        await loading_message.delete()
+        movies.extend(new_movies)
+        current_index = len(movies) - len(new_movies)  # Сбрасываем индекс на начало новых фильмов
+        await state.update_data(movies=movies)
 
     # Обновляем индекс и отображаем следующий фильм
     await state.update_data(current_index=current_index)
