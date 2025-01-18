@@ -203,7 +203,7 @@ async def get_recommendations(message: types.Message, state: FSMContext):
     #Функция, которая проверяет, есть ли фильм в бд; если есть - вытаскиваем инфу, если нет - вызываем функции ниже
     # нужно узнать в каком виде хранятся данные о фильме
     # Нужно убрать карусель избранных и сделать список (пагинация)
-    # нужно зациклить реки до нажатия стоп
+ 
 
 
     movies_data = await get_movies(response, user_id)
@@ -413,94 +413,27 @@ async def go_to_main_page(message: types.Message):
 
 
 @router.message(F.text == 'На главную')
-async def go_to_main_page(message: types.Message):
-    await message.answer(
-        "Выберите пункт из меню",
-        reply_markup=kb.main_menu_button
-    )
-
-
-@router.callback_query(F.data.in_(['move_forward', 'move_back','move_begin','move_end' , 'show_list', 'На главную']))
-async def handle_favourite_action(callback: types.CallbackQuery, state: FSMContext):
-    # Получаем список фильмов и текущий индекс
-    data = await state.get_data()
-    movies = data.get("movies", [])
-    current_index = data.get("current_index", 0)
-
-    if not movies:
-        await callback.message.answer("Список избранного пуст. Вернитесь позже!")
-        await callback.answer()
-        return
-
-    action = callback.data
-    if action == "move_forward":
-        current_index += 1
-        if current_index >= len(movies):
-            current_index = 0  # Возвращаемся к первому фильму
-    elif action == "move_back":
-        current_index -= 1
-        if current_index < 0:
-            current_index = len(movies) - 1  # Переходим к последнему фильму
-
-    elif action == 'move_begin':
-        current_index = 0
-
-    elif action == 'move_end':
-        current_index = len(movies) - 1
-
-    elif action == "show_list":
-        current_page = data.get("current_page", 0)
-
-        # Параметры пагинации
-        PAGE_SIZE = 100  # Количество фильмов на одной странице
-        start = current_page * PAGE_SIZE
-        end = start + PAGE_SIZE
-
-        # Формируем список фильмов для текущей страницы
-        current_movies = movies[start:end]
-        movie_list = "\n".join(
-            [
-                f"{i + 1 + start}. <b>{movie.get('name') or movie.get('alternativeName', 'Без названия')}</b>, "
-                f"{movie.get('year', 'Неизвестно')}, "
-                f"<a href='https://www.google.com/search?q=смотреть+фильм+{(movie.get('name') or movie.get('alternativeName', 'Без названия')).replace(' ', '+')}'>Смотреть</a>"
-                for i, movie in enumerate(current_movies)
-            ]
+@router.callback_query(lambda c: c.data == 'На главную')
+async def go_to_main_page(event):
+    if isinstance(event, types.Message):
+        await event.answer(
+            "Выберите пункт из меню",
+            reply_markup=kb.main_menu_button  # Обычная клавиатура
+        )
+    elif isinstance(event, types.CallbackQuery):
+        await event.message.answer(
+            "Выберите пункт из меню",
+            reply_markup=kb.main_menu_button  # Обычная клавиатура
         )
 
-        # Создаем клавиатуру для навигации
-        navigation_buttons = InlineKeyboardMarkup(inline_keyboard=[])
-        if current_page > 0:
-            navigation_buttons.inline_keyboard.append([kb.prev_button])
-        if end < len(movies):
-            navigation_buttons.inline_keyboard.append([kb.next_button])
-
-        # Новый текст сообщения
-        new_message_text = f"<b>Ваши избранные фильмы </b>\n\n{movie_list}"
-
-
-
-        # Обновляем состояние с текущей страницей
-        await state.update_data(current_page=current_page)
-
-        # Отвечаем на callback
-        await callback.answer()
-
-    elif action == "На главную":
-        await state.clear()
-        return
-
-    # Обновляем индекс и отображаем фильм
-    await state.update_data(current_index=current_index)
-    await send_favourite_movie_or_edit(callback.message, movies[current_index], state, current_index)
-
-    # Уведомляем Telegram, что callback обработан
-    await callback.answer()
 
 
 @router.message(F.text == 'Избранное')
 async def favourites(message: types.Message, state: FSMContext):
     # Получаем список IMDb ID фильмов из "Избранного"
     liked = await rq.get_liked_movies(message.from_user.id)
+    movies_on_page = 30
+    page = 1  # Начальная страница
 
     if not liked:
         await message.answer("У вас пока нет избранных фильмов.")
@@ -525,82 +458,51 @@ async def favourites(message: types.Message, state: FSMContext):
         await message.answer("Не удалось найти фильмы в избранном.")
         return
 
-    # Сохраняем данные в состояние
-    await state.update_data(movies=movies, current_index=0)
+    # Получаем данные для текущей страницы
+    start = (page - 1) * movies_on_page
+    end = page * movies_on_page
+    movies_for_page = movies[start:end]
 
-    # Показываем первый фильм
-    await send_favourite_movie_or_edit(message, movies[0], state, 0)
+    # Формируем список фильмов с форматированием
+    movie_list = []
+    for i, movie in enumerate(movies_for_page, start=start + 1):
+        title = movie.get('name') or movie.get('alternativeName') or "Название недоступно"
+        year = movie.get('year', 'Неизвестно')
+        rating = round(movie.get('rating', {}).get('kp', 0), 1)
+        google_search_url = f"https://www.google.com/search?q=смотреть+фильм+{title.replace(' ', '+')}"
 
+        movie_list.append(
+            f"<b>{i}. 🎬 <a href='{google_search_url}'>{title}</a></b>\n"
+            f"   📅 <i>{year} год</i>\n"
+            f"   ⭐ <i>Рейтинг: {rating if rating > 0 else 'Нет данных'}</i>"
+        )
 
-async def send_favourite_movie_or_edit(message, movie, state, index):
-    if not movie:
-        await message.answer("Данные о фильме недоступны.")
-        return
+    # Отправляем список фильмов
+    if movie_list:
+        movie_list_text = "<b>🌟 Ваши избранные фильмы:</b>\n\n" + "\n\n".join(movie_list)
 
-    # Получаем название фильма
-    title = movie.get('name') or movie.get('alternativeName') or "Название недоступно"
-    google_search_url = f"https://www.google.com/search?q=смотреть+фильм+{title.replace(' ', '+')}"
+        # Создаем кнопки пагинации
+        total_pages = -(-len(movies) // movies_on_page)  # Вычисляем общее количество страниц
+        pagination_buttons = []
 
-    poster_url = movie.get("poster", {}).get("url", "No image available")
-    description = (
-            movie.get('shortDescription') or
-            movie.get('description') or
-            'No description available'
-    )
+        if page > 1:
+            pagination_buttons.append(InlineKeyboardButton(text='⏮️ В начало', callback_data='page_1'))
+            pagination_buttons.append(InlineKeyboardButton(text='◀️ Назад', callback_data=f'page_{page - 1}'))
 
+        if page < total_pages:
+            pagination_buttons.append(InlineKeyboardButton(text='▶️ Вперед', callback_data=f'page_{page + 1}'))
+            pagination_buttons.append(InlineKeyboardButton(text='⏩ В конец', callback_data=f'page_{total_pages}'))
 
+        pagination_markup = InlineKeyboardMarkup(inline_keyboard=[
+            pagination_buttons,
+            [InlineKeyboardButton(text='На главную', callback_data='На главную')]
+        ])
 
-
-    movie_text = (
-        f"<b>Название:</b> {title}\n"
-        f"<b>Год:</b> {movie.get('year', 'Неизвестно')}\n"
-        f"<b>Рейтинг:</b> {round(movie.get('rating', {}).get('kp', 'Неизвестно'), 2)}\n"
-        f"<b>Длительность:</b> {movie.get('movieLength', 'Неизвестно')} мин.\n"
-        f"<b>Жанры:</b> {', '.join([genre['name'] for genre in movie.get('genres', [])])}\n\n"
-        f"<b>Описание:</b> {description}\n\n"
-        f'<a href="{google_search_url}">Смотреть</a>'
-    )
-    keyboard = kb.favourites_button
-
-    data = await state.get_data()
-    message_id = data.get("message_id")
-
-    if poster_url and poster_url != "No image available":
-        if message_id:
-            await message.bot.edit_message_media(
-                chat_id=message.chat.id,
-                message_id=message_id,
-                media=InputMediaPhoto(
-                    media=poster_url,
-                    caption=movie_text,
-                    parse_mode="HTML"
-                ),
-                reply_markup=keyboard
-            )
-        else:
-            sent_message = await message.answer_photo(
-                photo=poster_url,
-                caption=movie_text,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-            await state.update_data(message_id=sent_message.message_id)
+        await message.answer(movie_list_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=pagination_markup)
     else:
-        if message_id:
-            await message.bot.edit_message_text(
-                text=movie_text,
-                chat_id=message.chat.id,
-                message_id=message_id,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-        else:
-            sent_message = await message.answer(
-                text=movie_text,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
-            await state.update_data(message_id=sent_message.message_id)
+        await message.answer("Не удалось найти фильмы в избранном.")
+
+
 
 
 

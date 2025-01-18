@@ -34,7 +34,6 @@ favourites_button = InlineKeyboardMarkup(inline_keyboard=[
      InlineKeyboardButton(text='▶️', callback_data='move_forward'),
      InlineKeyboardButton(text='⏩', callback_data='move_end')
      ],
-    [InlineKeyboardButton(text='Список', callback_data='show_list')],
     [InlineKeyboardButton(text='На главную', callback_data='На главную')]
 ])
 
