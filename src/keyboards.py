@@ -10,19 +10,11 @@ subscribe_button  = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Проверить подписку', callback_data='check')]
 ])
 
-main_menu_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Мой Профиль')],
-                                [KeyboardButton(text='Рекомендации'),],
-                                [KeyboardButton(text='Избранное')]], resize_keyboard=True, one_time_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]
+
 
 check_subscription_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Проверить подписку')]])
 
-set_profile_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Давай')],
-                                                   [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
 
-
-profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Сбросить рекомендации')],
-                                                    #[KeyboardButton(text = 'Подписка')],
-                                                    [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
 
 
 
@@ -64,5 +56,17 @@ def user_recommendation_button(index: int):
     }
     for text, menu_name in btns.items():
         keyboard.add(InlineKeyboardButton(text=text, callback_data=Menu_Callback(menu_name=menu_name, index=index).pack()))
+
     return keyboard.adjust(2, 1, 1).as_markup()
 
+set_profile_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Давай')],
+                                                   [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
+
+
+profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Сбросить рекомендации')],
+                                                    #[KeyboardButton(text = 'Подписка')],
+                                                    [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
+
+main_menu_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Мой Профиль')],
+                                [KeyboardButton(text='Рекомендации'),],
+                                [KeyboardButton(text='Избранное')]], resize_keyboard=True, one_time_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]

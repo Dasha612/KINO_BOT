@@ -1,6 +1,4 @@
 import os
-from gc import callbacks
-
 from aiogram import types, Router, Bot, F
 from aiogram.filters import CommandStart, Command
 import keyboards as kb
@@ -9,8 +7,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 import logging
-import aiogram
-
 
 from config import bot
 from db.models import async_session
@@ -162,7 +158,6 @@ async def check_sub(callback: CallbackQuery, bot: Bot, state: FSMContext):
     await callback.answer()
 
 
-
 @router.message(F.text == 'Мой Профиль')
 async def my_profile(message: types.Message):
     user_id = message.from_user.id
@@ -184,10 +179,24 @@ async def my_profile(message: types.Message):
 @router.message(F.text == "Рекомендации")
 async def get_recommendations(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
+    start_rec_message = await message.answer("Запускаю рекомендации...", reply_markup=ReplyKeyboardRemove())
 
-    # Проверяем наличие рекомендаций
+    unwatched_movies = await rq.get_unrec(user_id)
+    logger.info(f"UNWATCHED for user id {user_id}: {unwatched_movies}")
 
     recommendations = await rq.get_rec(user_id)
+    if len(unwatched_movies) != 0:
+        res = await find_by_imdb(unwatched_movies)
+        await start_rec_message.delete()
+        movies = [
+            {**movie, "from_unwatched": True}  # Добавляем флаг
+            for movie in await extract_movie_data(res)
+        ]
+        await state.update_data(movies=movies, current_index=0)
+
+        # Отображаем первый фильм
+        await send_movie_or_edit(message, movies[0], state, 0, user_id)
+        return
 
     if not recommendations:
         await message.answer(
@@ -196,39 +205,36 @@ async def get_recommendations(message: types.Message, state: FSMContext):
             "твои ответы, тем лучше я смогу настроить свой рекомендательный алгоритм.\nПриступим?",
             reply_markup=kb.set_profile_button,
         )
+        await start_rec_message.delete()
         return
 
-    # Если рекомендации есть, сразу начинаем рекомендовать
+
     response = await movie_rec(user_id)
-    #Функция, которая проверяет, есть ли фильм в бд; если есть - вытаскиваем инфу, если нет - вызываем функции ниже
-    # нужно узнать в каком виде хранятся данные о фильме
-    # Нужно убрать карусель избранных и сделать список (пагинация)
- 
-
-
     movies_data = await get_movies(response, user_id)
 
     movies = await extract_movie_data(movies_data)
+    logger.info(f"Фильмы для показа: {movies}")
+
     await state.update_data(movies=movies, current_index=0)
+    await start_rec_message.delete()
 
     # Отображаем первый фильм
-    await send_movie_or_edit(message, movies[0], state, 0)
+    await send_movie_or_edit(message, movies[0], state, 0, user_id)
 
 
-async def send_movie_or_edit(message, movie, state, index):
+async def send_movie_or_edit(message, movie, state, index, user_id):
     title = movie['title']
     google_search_url = f"https://www.google.com/search?q=смотреть+фильм+{title.replace(' ', '+')}"
 
-    # Проверка URL постера
     poster_url = movie.get('poster', 'No image available')
     if not poster_url or poster_url == 'No image available':
         poster_url = None  # Устанавливаем None, если изображение отсутствует
+    rating = round(float(movie['rating']), 1) if movie['rating'] != 'Not Found' else 'Not Found'
 
-    # Формируем текст сообщения
     movie_text = (
         f"<b>Название:</b> {title}\n"
         f"<b>Год:</b> {movie['year']}\n"
-        f"<b>Рейтинг:</b> {movie['rating']}\n"
+        f"<b>Рейтинг:</b> {rating}\n"
         f"<b>Длительность:</b> {movie['duration']}\n"
         f"<b>Жанры:</b> {movie['genres']}\n\n"
         f"<b>Описание:</b> {movie['description']}\n"
@@ -291,6 +297,12 @@ async def send_movie_or_edit(message, movie, state, index):
             )
             # Сохраняем ID сообщения
             await state.update_data(message_id=sent_message.message_id)
+    if movie.get("from_unwatched"):
+        try:
+            await rq.remove_unrec(user_id, movie['movie_id'])
+
+        except Exception as e:
+            logger.error(f"Failed to remove movie {movie['movie_id']} from unwatched_movies for user {user_id}: {e}")
 
 
 @router.callback_query(Menu_Callback.filter())
@@ -299,7 +311,7 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     data = await state.get_data()
     movies = data.get("movies", [])
     current_index = data.get("current_index", 0)
-    user_id = callback.message.from_user.id
+    user_id = callback.from_user.id
 
     # Проверяем корректность индекса
     if current_index >= len(movies) or current_index < 0:
@@ -319,18 +331,23 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     elif action == "next":
         await rq.add_to_next(callback.from_user.id, movie['movie_id'])
     elif action == "Стоп":
-        logger.info("Stopping recommendations for user %s", callback.from_user.id)
+        # Обработка оставшихся фильмов
+        remaining_movies = movies[current_index:]  # Фильмы, которые ещё не были показаны
+        logger.info(remaining_movies)
+        for movie in remaining_movies:
+            await rq.add_to_unrec(user_id, movie['movie_id'])
 
-        await state.clear()  # Очищаем состояние
+        # Очистка состояния и завершение рекомендаций
+        await state.clear()
         await callback.message.answer(
             "Рекомендации остановлены. Возвращайтесь, когда захотите!",
-            reply_markup=kb.main_menu_button  # Клавиатура для возврата в главное меню
+            reply_markup=kb.main_menu_button
         )
-        await callback.answer()  # Закрываем callback
+        await callback.answer()
         return
     elif action == "watched":
         await callback.message.answer("Пожалуйста, оцените фильм", reply_markup=kb.rate_buttons)
-        await state.update_data(last_action="watched")  # Сохраняем состояние для проверки
+        await state.update_data(last_action="watched")
         await callback.answer()
         return
 
@@ -338,7 +355,10 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     if last_action == "watched":
         return
 
+    # Увеличиваем индекс для показа следующего фильма
     current_index += 1
+
+    # Проверяем, достигли ли конца списка
     if current_index >= len(movies):
         # Получаем новые рекомендации
         loading_message = await callback.message.answer("Подождите немного, подгружаем новые рекомендации...")
@@ -346,21 +366,31 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
         movies_data = await get_movies(response, callback.from_user.id)
         new_movies = await extract_movie_data(movies_data)
 
-        # Если новые фильмы не найдены, завершаем
+        # Если новых фильмов нет, завершаем
         if not new_movies:
+            await loading_message.delete()
             await callback.message.answer("К сожалению, больше фильмов нет. Возвращайтесь позже!")
             await callback.answer()
             return
         await loading_message.delete()
 
-        # Добавляем новые фильмы в состояние
+        # Добавляем новые фильмы в список
         movies.extend(new_movies)
         await state.update_data(movies=movies)
 
-    # Обновляем индекс и отображаем следующий фильм
+    # Обновляем индекс в состоянии
     await state.update_data(current_index=current_index)
-    await send_movie_or_edit(callback.message, movies[current_index], state, current_index)
+
+    # Отправляем следующий фильм
+    if current_index < len(movies):
+        await send_movie_or_edit(callback.message, movies[current_index], state, current_index, user_id)
+
+    # Завершаем callback
     await callback.answer()
+
+
+
+
 
 
 @router.callback_query(F.data.in_(['1', '2', '3', '4', '5']))
@@ -371,12 +401,11 @@ async def handle_rating(callback: types.CallbackQuery, state: FSMContext):
     current_index = data.get("current_index", 0)
     movies = data.get("movies", [])
     movie = movies[current_index]
-
+    user_id = callback.from_user.id
 
     if user_rating >=4:
         await rq.save_movie_rating(user_id=callback.from_user.id, movie_id=movie['movie_id'])
 
-    # Удаляем сообщение с кнопками
     await callback.message.delete()
 
     # Сбрасываем состояние last_action
@@ -397,7 +426,7 @@ async def handle_rating(callback: types.CallbackQuery, state: FSMContext):
 
     # Обновляем индекс и отображаем следующий фильм
     await state.update_data(current_index=current_index)
-    await send_movie_or_edit(callback.message, movies[current_index], state, current_index)
+    await send_movie_or_edit(callback.message, movies[current_index], state, current_index, user_id)
     await callback.answer()
 
 
@@ -438,6 +467,7 @@ async def favourites(message: types.Message, state: FSMContext):
     if not liked:
         await message.answer("У вас пока нет избранных фильмов.")
         return
+    logger.info(f"Избранные: {liked}")
 
     # Получаем данные о фильмах с помощью новой функции
     favourites_data = await find_by_imdb(liked)

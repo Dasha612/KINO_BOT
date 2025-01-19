@@ -3,9 +3,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
 
 from datetime import datetime
-
-from sqlalchemy.exc import NoResultFound
-
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 async def set_user(
@@ -220,6 +218,19 @@ async def get_unrec(user_id: int) -> list:
                 )
             )
             return [row[0] for row in result.fetchall() if row[0]]  # Возвращаем список IMDb ID
+
+async def remove_unrec(user_id: int, movie_id: str):
+    async with async_session() as session:
+        async with session.begin():
+            # Удаляем запись с указанным user_id и movie_id
+            await session.execute(
+                delete(UserPreferences)
+                .where(UserPreferences.user_id == user_id)
+                .where(UserPreferences.unrecommended == movie_id)
+            )
+            await session.commit()  # Подтверждаем изменения
+
+
 
 
 

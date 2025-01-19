@@ -108,7 +108,7 @@ async def get_movies(movies_list, user_id):
 
 
 async def extract_movie_data(movies_data):
-    logger.info(movies_data)
+    logger.info(f"Полученные данные для извлечения в extract_movie_data: {movies_data}")
     movie_info_list = []  # Список для хранения данных о фильмах
     for movie, data in movies_data.items():
         docs = data['data'].get('docs', []) if data['data'] != 'Not Found' else []
@@ -151,7 +151,7 @@ async def extract_movie_data(movies_data):
                 'duration': 'Not Found',
             })
 
-    logger.info(f"Extracted movie data: {movie_info_list}")
+    logger.info(f"Результат Extracted movie data: {movie_info_list}")
     return movie_info_list
 
 
@@ -160,6 +160,7 @@ async def check_movie():
 
 #FOR FAVOURITES
 async def find_by_imdb(movie_imdb_ids):
+    logger.info(f"Полученные фильмы в функцию: {movie_imdb_ids}")
 
     movies_data = {}
 
@@ -175,7 +176,7 @@ async def find_by_imdb(movie_imdb_ids):
             movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': data}
         else:
             movies_data[imdb_id] = {'imdb_id': imdb_id, 'data': 'Not Found'}
-    logger.info(movies_data)
+    logger.info(f"Найденные фильмы по id: {movies_data}")
 
     return movies_data
 
@@ -186,7 +187,7 @@ async def fetch_data(url):
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    logger.debug(data)
+
                     return data
                 else:
                     logger.warning(f"Failed to fetch data for URL: {url}, Status: {response.status}")
