@@ -144,6 +144,29 @@ async def get_rec(user_id: int):
 
     return answers
 
+async def get_status(user_id: int) -> bool:
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(RecommendationSettings.rec_status).where(RecommendationSettings.user_id == user_id)
+            )
+            rec_status = result.scalar()  # Получаем единственное значение
+
+    return rec_status if rec_status is not None else False  # Если статус не найден, возвращаем False
+
+
+async def update_status(user_id: int, new_status: bool):
+    async with async_session() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(RecommendationSettings).where(RecommendationSettings.user_id == user_id)
+            )
+            recommendation = result.scalars().first()
+
+            if recommendation:
+                recommendation.rec_status = new_status
+                await session.commit()
+
 
 async def get_liked_movies(user_id: int) -> list:
     """Получает все лайкнутые фильмы пользователя."""

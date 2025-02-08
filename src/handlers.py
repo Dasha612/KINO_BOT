@@ -39,49 +39,52 @@ class Anketa(StatesGroup):
     q6 = State()
     q7 = State()
 
-@router.message(F.text == 'Давай')
-async def registration_start(message: Message, state: FSMContext) -> None:
-    await message.answer(questions[0])
+
+
+@router.callback_query(F.data == "set_profile")
+async def registration_start(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer(questions[0])
     await state.set_state(Anketa.q1)
+    await callback.answer()
 
 @router.message(Anketa.q1)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q1(message: types.Message, state: FSMContext):
     await state.update_data(q1=message.text)
     await message.answer(questions[1])
     await state.set_state(Anketa.q2)
 
 @router.message(Anketa.q2)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q2(message: types.Message, state: FSMContext):
     await state.update_data(q2=message.text)
     await message.answer(questions[2])
     await state.set_state(Anketa.q3)
 
 @router.message(Anketa.q3)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q3(message: types.Message, state: FSMContext):
     await state.update_data(q3=message.text)
     await message.answer(questions[3])
     await state.set_state(Anketa.q4)
 
 @router.message(Anketa.q4)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q4(message: types.Message, state: FSMContext):
     await state.update_data(q4=message.text)
     await message.answer(questions[4])
     await state.set_state(Anketa.q5)
 
 @router.message(Anketa.q5)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q5(message: types.Message, state: FSMContext):
     await state.update_data(q5=message.text)
     await message.answer(questions[5])
     await state.set_state(Anketa.q6)
 
 @router.message(Anketa.q6)
-async def set_q1(message: Message, state: FSMContext) -> None:
+async def set_q6(message: types.Message, state: FSMContext):
     await state.update_data(q6=message.text)
     await message.answer(questions[6])
     await state.set_state(Anketa.q7)
 
 @router.message(Anketa.q7)
-async def set_q7(message: Message, state: FSMContext) -> None:
+async def set_q7(message: types.Message, state: FSMContext):
     await state.update_data(q7=message.text)
     user_data = await state.get_data()
     member = await bot.get_chat_member(chat_id='-100' + os.getenv("TEST_CHAT_ID"), user_id=message.from_user.id)
@@ -92,9 +95,10 @@ async def set_q7(message: Message, state: FSMContext) -> None:
         rec4=user_data['q4'], rec5=user_data['q5'], rec6=user_data['q6'], rec7=user_data['q7'],
         user_id=message.from_user.id, async_session=async_session
     )
+    await rq.update_status(message.from_user.id, True )
 
     await message.answer('Уфф...Все ответы записал.')
-    await message.answer('Я смотрю, что ты опытный киноман, но даже тебя я смогу удивить.', reply_markup=ReplyKeyboardRemove())
+    await message.answer('Я смотрю, что ты опытный киноман, но даже тебя я смогу удивить.', reply_markup=types.ReplyKeyboardRemove())
 
     if member.status == 'left':
         await message.answer(
@@ -102,21 +106,16 @@ async def set_q7(message: Message, state: FSMContext) -> None:
             reply_markup=kb.subscribe_button
         )
     else:
-        # Начинаем сразу рекомендовать фильмы
-
-        await message.answer(
-            'Начинаю рекомендовать фильмы!'
-        )
+        await message.answer('Начинаю рекомендовать фильмы!')
         response = await movie_rec(message.from_user.id)
         movies_data = await get_movies(response, message.from_user.id)
         movies = await extract_movie_data(movies_data)
         await state.update_data(movies=movies, current_index=0)
 
         # Отображаем первый фильм
-        await send_movie_or_edit(message, movies[0], state, 0)
+        await send_movie_or_edit(message, movies[0], state, 0, message.from_user.id)
 
     await state.update_data(current_index=0)
-
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -137,6 +136,7 @@ async def check_sub(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
     if is_subscribed.status != 'left':
         # Благодарим за подписку
+        await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
         await callback.message.answer(
             "Спасибо за подписку!\nНачинаю рекомендовать фильмы!"
         )
@@ -148,23 +148,25 @@ async def check_sub(callback: CallbackQuery, bot: Bot, state: FSMContext):
         await state.update_data(movies=movies, current_index=0)
 
         # Отображаем первый фильм
-        await send_movie_or_edit(callback.message, movies[0], state, 0)
+        await send_movie_or_edit(callback.message, movies[0], state, 0, user_id=callback.from_user.id)
     else:
         # Если пользователь не подписан, напомнить подписаться
         await callback.message.answer(
             "Для начала подпишитесь на наш канал, чтобы продолжить.",
             reply_markup=kb.subscribe_button  # Показываем кнопку для подписки
         )
+
     await callback.answer()
 
 
-@router.message(F.text == 'Мой Профиль')
-async def my_profile(message: types.Message):
-    user_id = message.from_user.id
-    recommendations = await rq.get_rec(user_id)
-    status = 'настроены' if recommendations else 'не настроены'
+@router.callback_query(F.data == 'my_profile')
+async def my_profile(callback: CallbackQuery):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
+    user_id = callback.from_user.id
+    status = await rq.get_status(user_id)
+    status = 'настроены' if status else 'не настроены'
 
-    await message.answer(
+    await callback.message.answer(
         (
             f"<b>👤 Ваш профиль:</b>\n"
             f"<b>ID:</b> <code>{user_id}</code>\n"
@@ -176,10 +178,22 @@ async def my_profile(message: types.Message):
     )
 
 
-@router.message(F.text == "Рекомендации")
-async def get_recommendations(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    start_rec_message = await message.answer("Запускаю рекомендации...", reply_markup=ReplyKeyboardRemove())
+@router.callback_query(F.data == 'recommendations')
+async def get_recommendations(callback: CallbackQuery, state: FSMContext):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
+    user_id = callback.from_user.id
+    #start_rec_message = await callback.message.answer("Запускаю рекомендации...", reply_markup=ReplyKeyboardRemove())
+    member = await bot.get_chat_member(
+        chat_id='-100' + os.getenv("TEST_CHAT_ID"),
+        user_id=user_id
+    )
+
+    if member.status == 'left':  # Пользователь не подписан
+        await callback.message.answer(
+            "Для того чтобы продолжить и получить рекомендации, подпишитесь на наш телеграм-канал Вика про кино.",
+            reply_markup=kb.subscribe_button
+        )
+        return
 
     unwatched_movies = await rq.get_unrec(user_id)
     logger.info(f"UNWATCHED for user id {user_id}: {unwatched_movies}")
@@ -187,7 +201,7 @@ async def get_recommendations(message: types.Message, state: FSMContext):
     recommendations = await rq.get_rec(user_id)
     if len(unwatched_movies) != 0:
         res = await find_by_imdb(unwatched_movies)
-        await start_rec_message.delete()
+        #await start_rec_message.delete()
         movies = [
             {**movie, "from_unwatched": True}  # Добавляем флаг
             for movie in await extract_movie_data(res)
@@ -195,17 +209,17 @@ async def get_recommendations(message: types.Message, state: FSMContext):
         await state.update_data(movies=movies, current_index=0)
 
         # Отображаем первый фильм
-        await send_movie_or_edit(message, movies[0], state, 0, user_id)
+        await send_movie_or_edit(callback.message, movies[0], state, 0, user_id)
         return
 
     if not recommendations:
-        await message.answer(
+        await callback.message.answer(
             "Прежде чем порекомендовать тебе фильм, мне нужно узнать о тебе больше информации.\n"
             "Сейчас я задам тебе 7 вопросов, а тебе нужно будет на них ответить. Чем развёрнутее будут "
             "твои ответы, тем лучше я смогу настроить свой рекомендательный алгоритм.\nПриступим?",
             reply_markup=kb.set_profile_button,
         )
-        await start_rec_message.delete()
+        #await start_rec_message.delete()
         return
 
 
@@ -216,10 +230,10 @@ async def get_recommendations(message: types.Message, state: FSMContext):
     logger.info(f"Фильмы для показа: {movies}")
 
     await state.update_data(movies=movies, current_index=0)
-    await start_rec_message.delete()
+    #await start_rec_message.delete()
 
     # Отображаем первый фильм
-    await send_movie_or_edit(message, movies[0], state, 0, user_id)
+    await send_movie_or_edit(callback.message, movies[0], state, 0, user_id)
 
 
 async def send_movie_or_edit(message, movie, state, index, user_id):
@@ -332,6 +346,7 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
         await rq.add_to_next(callback.from_user.id, movie['movie_id'])
     elif action == "Стоп":
         # Обработка оставшихся фильмов
+        await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
         remaining_movies = movies[current_index:]  # Фильмы, которые ещё не были показаны
         logger.info(remaining_movies)
         for movie in remaining_movies:
@@ -362,14 +377,21 @@ async def handle_movie_action(callback: types.CallbackQuery, callback_data: Menu
     if current_index >= len(movies):
         # Получаем новые рекомендации
         loading_message = await callback.message.answer("Подождите немного, подгружаем новые рекомендации...")
+        logger.info(f"Достигли конца списка. Новые реки для: {callback.from_user.id}")
         response = await movie_rec(callback.from_user.id)
+        logger.info(f"Достигли конца списка. Новые реки: {response}")
         movies_data = await get_movies(response, callback.from_user.id)
+        logger.info(f"Полученная инфа: {movies_data}")
         new_movies = await extract_movie_data(movies_data)
+        logger.info(new_movies)
+        #Проблема: чатгпт рекомендует фильмы, которые уже есть в лайках из-за чего список получается пустым
+        #Не работают кнопки перемотки страницы в избранных
+
 
         # Если новых фильмов нет, завершаем
         if not new_movies:
             await loading_message.delete()
-            await callback.message.answer("К сожалению, больше фильмов нет. Возвращайтесь позже!")
+            await callback.message.answer('Кажется, произошла ошибка :(\nПопробуйте нажать кнопку "Стоп" и возобновить рекомендации или обратитесь в поддержку - @Ddasmii')
             await callback.answer()
             return
         await loading_message.delete()
@@ -431,50 +453,49 @@ async def handle_rating(callback: types.CallbackQuery, state: FSMContext):
 
 
 
-@router.message(F.text == 'Сбросить рекомендации')
-async def go_to_main_page(message: types.Message):
+@router.callback_query(F.data == 'profile_reset_recommendations')
+async def reset_rec(callback: CallbackQuery):
 
-    result = await rq.reset_recommendations(message.from_user.id, async_session=async_session)
-    await message.answer(
+    await rq.reset_recommendations(callback.from_user.id, async_session=async_session)
+    await rq.update_status(callback.from_user.id, False)
+    await callback.message.answer(
         "Рекомендации сброшены.",
         reply_markup=kb.main_menu_button
     )
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
 
 
-@router.message(F.text == 'На главную')
-@router.callback_query(lambda c: c.data == 'На главную')
-async def go_to_main_page(event):
-    if isinstance(event, types.Message):
-        await event.answer(
-            "Выберите пункт из меню",
-            reply_markup=kb.main_menu_button  # Обычная клавиатура
-        )
-    elif isinstance(event, types.CallbackQuery):
-        await event.message.answer(
-            "Выберите пункт из меню",
-            reply_markup=kb.main_menu_button  # Обычная клавиатура
-        )
+@router.callback_query(F.data == 'main')
+async def go_to_main_page(callback: CallbackQuery):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
+    await callback.message.answer(
+        "Выберите пункт из меню",
+        reply_markup=kb.main_menu_button  # Обычная клавиатура
+    )
 
 
 
-@router.message(F.text == 'Избранное')
-async def favourites(message: types.Message, state: FSMContext):
+
+
+
+
+@router.callback_query(F.data == 'favourites')
+async def favourites(callback: CallbackQuery):
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=callback.message.message_id)
     # Получаем список IMDb ID фильмов из "Избранного"
-    liked = await rq.get_liked_movies(message.from_user.id)
-    movies_on_page = 30
+    liked = await rq.get_liked_movies(callback.from_user.id)
+    movies_on_page = 15
     page = 1  # Начальная страница
 
     if not liked:
-        await message.answer("У вас пока нет избранных фильмов.")
-        return
+        await callback.message.answer("У вас пока нет избранных фильмов.", reply_markup=kb.main)
+
     logger.info(f"Избранные: {liked}")
 
     # Получаем данные о фильмах с помощью новой функции
     favourites_data = await find_by_imdb(liked)
 
-    if not favourites_data:
-        await message.answer("Не удалось получить данные о фильмах. Попробуйте позже.")
-        return
+
 
     logger.info(favourites_data)
 
@@ -484,9 +505,7 @@ async def favourites(message: types.Message, state: FSMContext):
         for item in favourites_data.values() if item["data"]["docs"]
     ]
 
-    if not movies:
-        await message.answer("Не удалось найти фильмы в избранном.")
-        return
+
 
     # Получаем данные для текущей страницы
     start = (page - 1) * movies_on_page
@@ -525,12 +544,12 @@ async def favourites(message: types.Message, state: FSMContext):
 
         pagination_markup = InlineKeyboardMarkup(inline_keyboard=[
             pagination_buttons,
-            [InlineKeyboardButton(text='На главную', callback_data='На главную')]
+            [InlineKeyboardButton(text='На главную', callback_data='main')]
         ])
 
-        await message.answer(movie_list_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=pagination_markup)
-    else:
-        await message.answer("Не удалось найти фильмы в избранном.")
+        await callback.message.answer(movie_list_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=pagination_markup)
+
+
 
 
 

@@ -54,7 +54,8 @@ class RecommendationSettings(Base):
     __tablename__ = 'recommendation_settings'
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id = mapped_column(BigInteger, ForeignKey('users.user_id'), nullable=False)
-    rec: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rec_status: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     rec1: Mapped[str] = mapped_column(String(250))
     rec2: Mapped[str] = mapped_column(String(250))
     rec3: Mapped[str] = mapped_column(String(250))

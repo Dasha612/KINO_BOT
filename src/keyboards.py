@@ -11,26 +11,21 @@ subscribe_button  = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
-
-check_subscription_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Проверить подписку')]])
-
-
-
-
-
-
-
 favourites_button = InlineKeyboardMarkup(inline_keyboard=[
      [InlineKeyboardButton(text='⏮️', callback_data='move_begin'),
      InlineKeyboardButton(text='◀️', callback_data='move_back'),
      InlineKeyboardButton(text='▶️', callback_data='move_forward'),
      InlineKeyboardButton(text='⏩', callback_data='move_end')
      ],
-    [InlineKeyboardButton(text='На главную', callback_data='На главную')]
+    [InlineKeyboardButton(text='На главную', callback_data='main')]
 ])
 
 prev_button = InlineKeyboardButton(text="◀️", callback_data="show_list_prev")
 next_button = InlineKeyboardButton(text="▶️", callback_data="show_list_next")
+button_main = InlineKeyboardButton(text="На главную", callback_data="main")
+
+# Создаём клавиатуру и добавляем кнопку
+main = InlineKeyboardMarkup(inline_keyboard=[[button_main]])
 
 rate_buttons = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -59,14 +54,23 @@ def user_recommendation_button(index: int):
 
     return keyboard.adjust(2, 1, 1).as_markup()
 
-set_profile_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Давай')],
-                                                   [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
+# Главное меню (Main Menu)
+main_menu_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Мой Профиль', callback_data='my_profile')],
+    [InlineKeyboardButton(text='Рекомендации', callback_data='recommendations')],
+    [InlineKeyboardButton(text='Избранное', callback_data='favourites')],
+    # [InlineKeyboardButton(text='Выбрать фильм вместе', callback_data='main_choose_movie')]
+])
 
+# Кнопки для установки профиля (Set Profile)
+set_profile_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Давай', callback_data='set_profile')],
+    [InlineKeyboardButton(text='На главную', callback_data='main')]
+])
 
-profile_menu_buttons = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text = 'Сбросить рекомендации')],
-                                                    #[KeyboardButton(text = 'Подписка')],
-                                                    [KeyboardButton(text = 'На главную')]], resize_keyboard=True, one_time_keyboard=True)
-
-main_menu_button = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Мой Профиль')],
-                                [KeyboardButton(text='Рекомендации'),],
-                                [KeyboardButton(text='Избранное')]], resize_keyboard=True, one_time_keyboard=True) #,[KeyboardButton(text='Выбрать фильм вместе')]
+# Кнопки меню профиля (Profile Menu)
+profile_menu_buttons = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Сбросить рекомендации', callback_data='profile_reset_recommendations')],
+    # [InlineKeyboardButton(text='Подписка', callback_data='profile_subscription')],
+    [InlineKeyboardButton(text='На главную', callback_data='main')]
+])

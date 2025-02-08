@@ -109,10 +109,14 @@ async def movie_rec(user_id: int):
             res = await session.execute(
                 select(UserPreferences).where(UserPreferences.user_id == user_id)
             )
-            preferences = res.scalars()
-            watched_movies = [pref.watched for pref in preferences if pref.watched]
-            liked_movies = [pref.rec_like for pref in preferences if pref.rec_like]
+            preferences = res.scalars().all()  # Получаем все записи в виде списка
 
+            # Логируем извлечённые данные для проверки
+            logger.info(preferences)
+
+            # Извлекаем просмотренные фильмы и понравившиеся
+            watched_movies = [pref.watched for pref in preferences if pref.watched is not None]
+            liked_movies = [pref.rec_like for pref in preferences if pref.rec_like is not None]
 
             logger.info(preferences)
 

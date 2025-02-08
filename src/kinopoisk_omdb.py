@@ -41,6 +41,7 @@ async def find_in_ombd(movie_list, user_id):
         return {}
     movie_imdb_ids = {}
     tasks = []
+    logger.info(f"received list: {movie_list}")
 
     # Предварительно загружаем предпочтения пользователя
     liked_movies = await get_liked_movies(user_id)
@@ -59,6 +60,7 @@ async def find_in_ombd(movie_list, user_id):
         if not imdb_id or imdb_id in liked_movies or imdb_id in disliked_movies:
             continue
         movie_imdb_ids[movie] = imdb_id if imdb_id else 'Not Found'
+    logger.info(f"movie_imdb_ids: {movie_imdb_ids}")
 
     #logger.info(f"Movie IMDb IDs: {movie_imdb_ids}")
     return movie_imdb_ids
